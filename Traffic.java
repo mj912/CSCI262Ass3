@@ -310,19 +310,21 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 		
 		HashMap<String,int[]> numberMap = new HashMap<String, int[]>(); //ArrayList contain totals for each day of a type
 		HashMap<String,ArrayList<Double>> speedMap = new HashMap<String,ArrayList<Double>>(); //array list contains all speed of a type
-		HashMap<String,Integer> vehicleMap = new HashMap<>(); //map regPlate with arrivalTime, to be able to test speed breaches
+		HashMap<String, Integer> arrivalTimes = new HashMap<>(); //map regPlate with arrivalTime, to be able to test speed breaches
+	        HashMap<String, Integer> startPark = new HashMap<>(); //Used incase a vehicle parks more then once in a single trip
+	        HashMap<String, Integer> parkTimes = new HashMap<>(); //Store total time a vehicle was parked
 		HashMap<Integer,ArrayList<String>> breachedVehicles = new HashMap<Integer,ArrayList<String>>();
 		
 		System.out.println("Start analyzing log file...");
 		while ((line=reader.readLine())!=null) {
 			String[] fields = line.split(",");
 			String vType = fields[0];
+			String regPlate = fields[1];
 			String eventType = fields[2];
 			int d = Integer.parseInt(fields[fields.length-2]);
 			if (eventType.equals("ARRIVAL")) {
-				String regPlate = fields[1];
 				int arrivalMinute = Integer.parseInt(fields[fields.length-1]);
-				vehicleMap.put(regPlate,arrivalMinute);
+				arrivalTimes.put(regPlate,arrivalMinute);
 				double arrivalSpeed = Double.parseDouble(fields[3]);
 				if (speedMap.containsKey(vType)) {
 					speedMap.get(vType).add(arrivalSpeed);
@@ -341,10 +343,31 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 					numberMap.put(vType,dailyTotalNums);
 				}
 			}
+	            	//Consideration for whether or not a vehicle was parked to calculate accurate speed
+			else if(eventType.equals("PARK")) {
+				String parkType = fields[3];
+				int timeOfEvent = Integer.parseInt(fields[fields.length - 1]);
+				if(parkType.equals("StartPark"))
+				{
+					startPark.put(regPlate, timeOfEvent);
+				}
+				else
+				{
+					int timeParked = timeOfEvent - startPark.get(regPlate);
+					parkTimes.merge(regPlate, timeParked, Integer::sum); //add if not exist or +=
+					startPark.remove(regPlate);
+				}
+			}
 			else if (eventType.equals("DEPART_END")) {
-				String regPlate = fields[1];
 				int departMinute = Integer.parseInt(fields[fields.length-1]);
-				double averageSpeed = (double)(length)/(departMinute - vehicleMap.get(regPlate))*60; //to convert km/minute -> km/h
+				double averageSpeed;
+	                	if(parkTimes.containsKey(regPlate)) {
+	                    		averageSpeed = (double) (length) / (departMinute - arrivalTimes.get(regPlate) - parkTimes.get(regPlate)) * 60;
+	                	} 
+				else {
+	                    		averageSpeed = (double) (length) / (departMinute - arrivalTimes.get(regPlate)) * 60; //to convert km/minute -> km/h
+	                	}
+	                	//System.out.println(regPlate + " " + averageSpeed);
 				if (averageSpeed > maxSpeed) {
 					if (breachedVehicles.containsKey(d)) {
 						breachedVehicles.get(d).add(regPlate);

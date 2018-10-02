@@ -462,7 +462,7 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 			int speedWeight = Integer.parseInt(fields[4]);
 			if(volumeWeight < 0 || speedWeight < 0) {
 				System.out.println("Invalid input in vehicles file. Ensure weights are equal to or greater then 0.");
-				System.exit(1)
+				System.exit(1);
 			}
 			VehicleType v = new VehicleType(name,canPark,regFormat,volumeWeight,speedWeight);
 			vehicleTypes.put(name,v); //associate each vehicle with the name

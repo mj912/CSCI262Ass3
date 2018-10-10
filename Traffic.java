@@ -436,21 +436,22 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 		}
 	}
 	
-	public static void main(String[] args) throws IOException,NumberFormatException,InconsistentException {
+	public static void main(String[] args) throws IOException,NumberFormatException,InconsistentException,IllegalArgumentException {
 		String vehicleFile = args[0];
 		String statFile = args[1];
 		int days = Integer.parseInt(args[2]);
-		if(days < 1) {
-			System.out.println("Days argument invalid. Enter an integer greater then 0.");
-			System.exit(1);
+		while(days < 1) {
+			System.out.println("Days argument invalid. Enter an integer greater then 0: ");
+			Scanner in = new Scanner(System.in);
+                        days = in.nextInt();
+                        in.close();
 		}
 		
 		BufferedReader r = new BufferedReader(new FileReader(vehicleFile));
 		String line= r.readLine(); //read the first line - the number of monitored vehicle types
 		int monitoredTypes = Integer.parseInt(line);
 		if(monitoredTypes < 1) {
-			System.out.println("Monitored vehicles must be greater then 0.");
-			System.exit(1);
+			throw new IllegalArgumentException("Monitored vehicles must be greater then 0.");
 		}
 		HashMap<String, VehicleType> vehicleTypes= new HashMap<String, VehicleType>();
 		while ((line=r.readLine())!=null) { //read in subsequent lines
@@ -461,8 +462,7 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 			int volumeWeight = Integer.parseInt(fields[3]);
 			int speedWeight = Integer.parseInt(fields[4]);
 			if(volumeWeight < 0 || speedWeight < 0) {
-				System.out.println("Invalid input in vehicles file. Ensure weights are equal to or greater then 0.");
-				System.exit(1);
+				throw new IllegalArgumentException("Invalid input in vehicles file. Ensure weights are equal to or greater then 0.");
 			}
 			VehicleType v = new VehicleType(name,canPark,regFormat,volumeWeight,speedWeight);
 			vehicleTypes.put(name,v); //associate each vehicle with the name
@@ -479,8 +479,7 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 		int maxSpeed = Integer.parseInt(roadStats[2]);
 		int parkingSpaces = Integer.parseInt(roadStats[3]);
 		if(length < 0 || maxSpeed < 0 || parkingSpaces < 0) {
-			System.out.println("Invalid input in stats file. Ensure your length, speed and parking spaces are correct.");
-			System.exit(1);
+			throw new IllegalArgumentException("Invalid input in stats file. Ensure your length, speed and parking spaces are correct.");
 		}
 		HashMap<String,Stat> stats = new HashMap<String,Stat>();
 		while ((line=r.readLine())!=null) {
@@ -494,8 +493,7 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 			double speedMean = Double.parseDouble(fields[3]);
 			double speedStdDev = Double.parseDouble(fields[4]);
 			if(numMean < 0 || numStdDev < 0 || speedMean < 0 || speedStdDev < 0) {
-				System.out.println("Invalid input in stats file. Ensure statistical data is correct.");
-				System.exit(1);
+				throw new IllegalArgumentException("Invalid input in stats file. Ensure statistical data is correct.");
 			}
 			Stat s = new Stat(name,numMean,numStdDev,speedMean,speedStdDev);
 			stats.put(name,s);

@@ -492,6 +492,7 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 		if(length < 0 || maxSpeed < 0 || parkingSpaces < 0) {
 			throw new IllegalArgumentException("Invalid input in stats file. Ensure your length, speed and parking spaces are correct.");
 		}
+		readCounter = 0;
 		HashMap<String,Stat> stats = new HashMap<String,Stat>();
 		while ((line=r.readLine())!=null) {
 			String[] fields = line.split(":");
@@ -508,6 +509,11 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 			}
 			Stat s = new Stat(name,numMean,numStdDev,speedMean,speedStdDev);
 			stats.put(name,s);
+			readCounter++;
+		}
+		if(readCounter != monitoredTypes)
+		{
+			throw new InconsistentException("Monitored count did not match the amount of vehicles read.");
 		}
 		r.close();
 		

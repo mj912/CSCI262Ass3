@@ -126,7 +126,6 @@ public class Traffic {
 	private int maxSpeed;
 	private int parkingSpaces;
 	private int remainingVehicles; //number of all remainingVehicles in remains
-	private boolean baseline;
 	private HashMap<String, VehicleType> vehicleTypes;
 	private HashMap<String, Stat> stats;
 	private ArrayList<Vehicle> vehicles; //all vehicles currently on the road
@@ -531,6 +530,54 @@ public class Traffic {
 		}
 		writer.close();
 	}
+        
+        private void alertEngine() throws IOException, InconsistentException {
+            HashMap<String, double[]> volumeAnomalyCounter = new HashMap<>();
+            HashMap<String, double[]> speedAnomalyCounter = new HashMap<>(); // Store anomaly count for each day where index = d-1
+            //Read baseline stats in to compare using stats.get(vType).numMean etc
+            readStatFile("baselineStats.txt");
+            //Read daily totals
+            BufferedReader r = new BufferedReader(new FileReader("dailyTotals.txt"));
+            String line;
+            while((line = r.readLine())!=null) {
+                String[] totals = line.split(":");
+                int day = Integer.parseInt(totals[0]);
+                String type = totals[1];
+                int volume = Integer.parseInt(totals[2]);
+                double avgSpeed = Double.parseDouble(totals[3]);
+                
+                //Check volume anomalies
+                double tmpCheck = Math.abs(volume - stats.get(type).numMean);
+                tmpCheck = tmpCheck / stats.get(type).numStdDev; //tmpCheck is now showing how many std deviations we are away from mean
+                tmpCheck = tmpCheck * vehicleTypes.get(type).volumeWeight; //tmpCheck is now our anomaly counter
+                if(volumeAnomalyCounter.containsKey(type))
+                {
+                    volumeAnomalyCounter.get(type)[day-1] = tmpCheck;
+                }
+                else
+                {
+                    double[] volumes = new double[days];
+                    volumes[day-1] = tmpCheck;
+                    volumeAnomalyCounter.put(type, volumes);
+                    System.out.println(day + " - " + type + " - " + tmpCheck);
+                }
+                //Check speed anomalies
+                tmpCheck = Math.abs(avgSpeed - stats.get(type).speedMean);
+                tmpCheck = tmpCheck / stats.get(type).speedStdDev;
+                tmpCheck = tmpCheck * vehicleTypes.get(type).speedWeight;
+                if(speedAnomalyCounter.containsKey(type))
+                {
+                    speedAnomalyCounter.get(type)[day-1] = tmpCheck;
+                }
+                else
+                {
+                    double[] speeds = new double[days];
+                    speeds[day-1] = tmpCheck;
+                    speedAnomalyCounter.put(type, speeds);
+                }
+            }
+            //TODO: If anomaly counter greater then 2*(sumofweights) THEN ALERT
+        }
 	
 	public static void main(String[] args) throws IOException,NumberFormatException,InconsistentException,IllegalArgumentException {
 		String vehicleFile = args[0];
@@ -554,10 +601,34 @@ public class Traffic {
 		
 		//analyze the log file, produce baselineStats.txt, breachedVehicles.txt, dailyTotals.txt
 		baselineTraffic.analyze("baselineStats.txt");
+
+                boolean flag = true;
+                Scanner in = new Scanner(System.in);
+                while(flag)
+                {
+                    System.out.println("Enter a new stats file or 'Q' to quit: ");
+                    statFile = in.nextLine();
+                    if(statFile.equalsIgnoreCase("q"))
+                    {
+                        flag = false; in.close(); break;
+                    }
+                    System.out.println("Enter an amount of days to generate traffic for: ");
+                    days = in.nextInt();
+                    while(days < 1) {
+				System.out.println("Enter an integer greater then 0: ");
+				days = in.nextInt();
+                    }
+                    in.nextLine();
+                    Traffic newTraffic = new Traffic (vehicleFile, statFile, days);
+                    newTraffic.generateAndLog();
+                    newTraffic.analyze("liveStats.txt");
+                    newTraffic.alertEngine();
+                }
+                in.close();
 		
-		//prompt user for a new file similar to Stats.txt, create a new Traffic instance
+		//prompt user for a new file similar to Stats.txt (LiveStats.txt), create a new Traffic instance
 		/*
-		Traffic liveTraffic = new Traffic(vehicleFile, liveStatFile,newDays);
+		Traffic liveTraffic = new Traffic(vehicleFile, liveStatFile,newDays,false);
 		liveTraffic.generateAndLog() => create log.txt
 		liveTraffic.analyze("liveStats.txt"); // by passing a different output file here, we generate a different stats to compare with baseline
 		*/

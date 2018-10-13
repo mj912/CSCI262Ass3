@@ -574,9 +574,9 @@ public class Traffic {
 		//analyze the log file, produce baselineStats.txt, breachedVehicles.txt, dailyTotals.txt
 		baselineTraffic.analyze("baselineStats.txt");
 		
-		//prompt user for a new file similar to Stats.txt (LiveStats.txt), create a new Traffic instance
+		//prompt user for a new file similar to Stats.txt, create a new Traffic instance
 		/*
-		Traffic liveTraffic = new Traffic(vehicleFile, liveStatFile,newDays,false);
+		Traffic liveTraffic = new Traffic(vehicleFile, liveStatFile,newDays);
 		liveTraffic.generateAndLog() => create log.txt
 		liveTraffic.analyze("liveStats.txt"); // by passing a different output file here, we generate a different stats to compare with baseline
 		*/

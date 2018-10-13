@@ -119,13 +119,14 @@ class ParkEvent extends Event {
 	}
 }
 
-public class Traffic { //note that we only monitor traffic on a single road right now. Stats.txt is for this single road only, Vehicles.txt is vehicle description in general
-	private int monitoredTypes; //the number of vehicles type being monitored on this road (this may be inconsistent with the number in Vehicles.txt, in this case equal)
+public class Traffic { 
+	private int monitoredTypes; 
 	private int days; //number of days to log
 	private int length;
 	private int maxSpeed;
 	private int parkingSpaces;
 	private int remainingVehicles; //number of all remainingVehicles in remains
+	private boolean baseline;
 	private HashMap<String, VehicleType> vehicleTypes;
 	private HashMap<String, Stat> stats;
 	private ArrayList<Vehicle> vehicles; //all vehicles currently on the road
@@ -135,83 +136,97 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 	private Random r;
 	private HashSet<String> plateSet; //a set of unique plates for all vehicles
 	
-	public Traffic(HashMap<String, VehicleType> vehicleTypes, HashMap<String, Stat> stats,int monitoredTypes, int days, int length, int maxSpeed, int parkingSpaces) {
-		this.monitoredTypes=monitoredTypes;
+	public Traffic(String vehicleFile,String statFile,int days) throws IOException,InconsistentException,NumberFormatException,IllegalArgumentException {
+		readVehicleFile(vehicleFile);
+		readStatFile(statFile);
 		this.days=days;
-		this.length=length;
-		this.maxSpeed=maxSpeed;
-		this.parkingSpaces=parkingSpaces;
-		remainingVehicles=0;
 		
-		this.vehicleTypes=vehicleTypes;
-		this.stats=stats;
+		if (vehicleTypes.size()!=stats.size()) {
+			throw new InconsistentException("Number of vehicle types is not consistent between 2 files");
+		}
+		
+		remains = new HashMap<String, LinkedList<String>>();
+		remainingVehicles=0;
 		vehicles = new ArrayList<Vehicle>();
 		newArrivals = new ArrayList<Vehicle>();
-		remains = new HashMap<String, LinkedList<String>>();
 		events=new ArrayList<Event>();
 		r = new Random();
 		plateSet = new HashSet<>();
 	}
 	
-	private EventType randomizeEventType() {
-		int n = r.nextInt(100);
-		if (n<5) {
-			return EventType.DEPART_SIDE;
+	private void readVehicleFile(String vehicleFile) throws IOException,InconsistentException, IllegalArgumentException, NumberFormatException
+	{
+		BufferedReader r = new BufferedReader(new FileReader(vehicleFile));
+		String line= r.readLine(); //read the first line - the number of monitored vehicle types
+		monitoredTypes = Integer.parseInt(line);
+		if(monitoredTypes < 1) {
+			throw new IllegalArgumentException("Monitored vehicles must be greater than 0.");
 		}
-		else if (n<95) {
-			return EventType.ARRIVAL;
-		}
-		else {
-			return EventType.PARK;
-		}
-	}
-	
-	private VehicleType randomizeVehicleType() {
-		List<String> types = new ArrayList<>();
-		for (String type: remains.keySet()) {
-			if (remains.get(type).size()>0) { //only add to the to be randomized array elements that are of size >0
-				types.add(type);
+		
+		int readCounter = 0;
+		vehicleTypes = new HashMap<String,VehicleType>();
+		while ((line=r.readLine())!=null) { //read in subsequent lines
+			String[] fields = line.split(":");
+			String name=fields[0];
+			boolean canPark = (fields[1].equals("0")) ? false : true;
+			String regFormat = fields[2];
+			int volumeWeight = Integer.parseInt(fields[3]);
+			int speedWeight = Integer.parseInt(fields[4]);
+			if(volumeWeight < 0 || speedWeight < 0) {
+				throw new IllegalArgumentException("Invalid input in vehicles file. Ensure weights are equal to or greater then 0.");
 			}
+			VehicleType v = new VehicleType(name,canPark,regFormat,volumeWeight,speedWeight);
+			vehicleTypes.put(name,v); //associate each vehicle with the name
+			readCounter++;
 		}
-		int index = r.nextInt(types.size());
-		return vehicleTypes.get(types.get(index));
-	}
-	
-	private Vehicle vehicleArrive() { //whether it's possible to add another vehicle of this type to the road
-		if (remainingVehicles>0) {
-			VehicleType vehicleType = randomizeVehicleType();
-			String regPlate=remains.get(vehicleType.name).removeFirst();
-			remainingVehicles--;
-			double startSpeed= stats.get(vehicleType.name).getGaussianSpeed();
-			Vehicle v = new Vehicle(vehicleType,startSpeed,regPlate);
-			newArrivals.add(v);
-			return v;
-		}
-		else {
-			return null;
+		r.close();
+		if(readCounter != monitoredTypes)
+		{
+			throw new InconsistentException("Monitored count did not match the amount of vehicles read.");
 		}
 	}
 	
-	private String generatePlate(VehicleType vType) {
-		StringBuilder b = new StringBuilder();
-		for (int i=0; i< vType.regFormat.length(); i++) {
-			if (vType.regFormat.charAt(i)=='D') {
-				b.append(r.nextInt(10)); //append one digit from 0-9
+	private void readStatFile(String statFile) throws IOException,InconsistentException, IllegalArgumentException, NumberFormatException
+	{
+		BufferedReader r = new BufferedReader(new FileReader(statFile));
+		String line = r.readLine();
+		String[] roadStats = line.split(" ");
+		
+		if (Integer.parseInt(roadStats[0])!= monitoredTypes) {
+			throw new InconsistentException("Number of vehicle types is not consistent between 2 files");
+		}
+		
+		length = Integer.parseInt(roadStats[1]);
+		maxSpeed = Integer.parseInt(roadStats[2]);
+		parkingSpaces = Integer.parseInt(roadStats[3]);
+		if(length < 0 || maxSpeed < 0 || parkingSpaces < 0) {
+			throw new IllegalArgumentException("Invalid input in stats file. Ensure your length, speed and parking spaces are correct.");
+		}
+		
+		int readCounter = 0;
+		stats = new HashMap<String,Stat>();
+		while ((line=r.readLine())!=null) {
+			String[] fields = line.split(":");
+			String name = fields[0];
+			if(!vehicleTypes.containsKey(name)) {
+				throw new InconsistentException("Vehicle types were not consistent.");
 			}
-			else {
-				char c = (char)('A'+r.nextInt(26));
-				b.append(c); //r.nextInt(26) returns 0 to 25, plus 'A' return A to Z
+			double numMean = Double.parseDouble(fields[1]);
+			double numStdDev = Double.parseDouble(fields[2]);
+			double speedMean = Double.parseDouble(fields[3]);
+			double speedStdDev = Double.parseDouble(fields[4]);
+			if(numMean < 0 || numStdDev < 0 || speedMean < 0 || speedStdDev < 0) {
+				throw new IllegalArgumentException("Invalid input in stats file. Ensure statistical data is correct.");
 			}
+			Stat s = new Stat(name,numMean,numStdDev,speedMean,speedStdDev);
+			stats.put(name,s);
+			readCounter++;
 		}
-		return b.toString();
-	}
-	
-	private String generateUniquePlate(VehicleType vType) {
-		String newPlate = generatePlate(vType);
-		while (plateSet.contains(newPlate)) {
-			newPlate=generatePlate(vType);
+		r.close();
+		if(readCounter != monitoredTypes)
+		{
+			throw new InconsistentException("Monitored count did not match the amount of vehicles read.");
 		}
-		return newPlate;
 	}
 	
 	public void generateAndLog() throws IOException {
@@ -303,12 +318,74 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 		w.close();
 	}
 	
-	private void analyze() throws IOException {
+	private String generateUniquePlate(VehicleType vType) {
+		String newPlate = generatePlate(vType);
+		while (plateSet.contains(newPlate)) {
+			newPlate=generatePlate(vType);
+		}
+		return newPlate;
+	}
+	
+	private String generatePlate(VehicleType vType) {
+		StringBuilder b = new StringBuilder();
+		for (int i=0; i< vType.regFormat.length(); i++) {
+			if (vType.regFormat.charAt(i)=='D') {
+				b.append(r.nextInt(10)); //append one digit from 0-9
+			}
+			else {
+				char c = (char)('A'+r.nextInt(26));
+				b.append(c); //r.nextInt(26) returns 0 to 25, plus 'A' return A to Z
+			}
+		}
+		return b.toString();
+	}
+	
+	private Vehicle vehicleArrive() { //whether it's possible to add another vehicle of this type to the road
+		if (remainingVehicles>0) {
+			VehicleType vehicleType = randomizeVehicleType();
+			String regPlate=remains.get(vehicleType.name).removeFirst();
+			remainingVehicles--;
+			double startSpeed= stats.get(vehicleType.name).getGaussianSpeed();
+			Vehicle v = new Vehicle(vehicleType,startSpeed,regPlate);
+			newArrivals.add(v);
+			return v;
+		}
+		else {
+			return null;
+		}
+	}
+	
+	private VehicleType randomizeVehicleType() {
+		List<String> types = new ArrayList<>();
+		for (String type: remains.keySet()) {
+			if (remains.get(type).size()>0) { //only add to the to be randomized array elements that are of size >0
+				types.add(type);
+			}
+		}
+		int index = r.nextInt(types.size());
+		return vehicleTypes.get(types.get(index));
+	}
+	
+	private EventType randomizeEventType() {
+		int n = r.nextInt(100);
+		if (n<5) {
+			return EventType.DEPART_SIDE;
+		}
+		else if (n<95) {
+			return EventType.ARRIVAL;
+		}
+		else {
+			return EventType.PARK;
+		}
+	}
+	
+	private void analyze(String outputFile) throws IOException {
 		BufferedReader reader = new BufferedReader(new FileReader("log.txt"));
 		String line=reader.readLine();
 		int days=Integer.parseInt(line);
 		
 		HashMap<String,int[]> numberMap = new HashMap<String, int[]>(); //ArrayList contain totals for each day of a type
+		HashMap<String,double[]> dailySpeedMap = new HashMap<String, double[]>(); //contain the total arrivalSpeed for each type in each day
 		HashMap<String,ArrayList<Double>> speedMap = new HashMap<String,ArrayList<Double>>(); //array list contains all speed of a type
 		HashMap<String,Integer> vehicleMap = new HashMap<>(); //map regPlate with arrivalTime, to be able to test speed breaches
 		HashMap<Integer,ArrayList<String>> breachedVehicles = new HashMap<Integer,ArrayList<String>>();
@@ -324,6 +401,14 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 				int arrivalMinute = Integer.parseInt(fields[fields.length-1]);
 				vehicleMap.put(regPlate,arrivalMinute);
 				double arrivalSpeed = Double.parseDouble(fields[3]);
+				if (dailySpeedMap.containsKey(vType)) {
+					dailySpeedMap.get(vType)[d-1]+=arrivalSpeed;
+				}
+				else {
+					double[] dailyTotalSpeeds = new double[days];
+					dailyTotalSpeeds[d-1]=arrivalSpeed;
+					dailySpeedMap.put(vType,dailyTotalSpeeds);
+				}
 				if (speedMap.containsKey(vType)) {
 					speedMap.get(vType).add(arrivalSpeed);
 				}
@@ -358,82 +443,93 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 			}
 		}
 		
-		//test
-		for (String type: numberMap.keySet()) {
-			System.out.println(type);
-			for (int num: numberMap.get(type)) {
-				System.out.print(num+" ");
-			}
-			System.out.println();
-		}
-		
 		//calculate statistics, numberMap, speedMap, breachedVehicles
 		System.out.println("Calculating vehicle statistics...");
-		HashMap<String,Double> numberMeans=new HashMap<>();
-		HashMap<String,Double> numberStdDevs=new HashMap<>();
-		HashMap<String,Double> speedMeans=new HashMap<>();
-		HashMap<String,Double> speedStdDevs=new HashMap<>();
+		//if run in baseline mode, generate baseline stats. If run in live traffic, generate another file liveStats.txt
+		BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile));
+		writer.write(monitoredTypes+" "+length+" "+maxSpeed+" "+parkingSpaces);
+		writer.newLine();
 		for (String type: vehicleTypes.keySet()) {
+			double numberMean=0.0, numberStdDev=0.0, speedMean=0.0, speedStdDev=0.0;
 			if (numberMap.containsKey(type)) {
 				int[] dailyTotalNums = numberMap.get(type);
 				
-				//calculate mean
+				//calculate volume mean
 				int total=0;
-				for (int i : dailyTotalNums) {
+				for (int i : dailyTotalNums) { //each dailyTotalNums[i] is the total number of vehicles for this type, day i+1
 					total+=i;
 				}
-				double mean = (double)(total)/dailyTotalNums.length;
-				numberMeans.put(type, mean);
+				numberMean = (double)(total)/dailyTotalNums.length;
 				
-				//calculate standard deviation
+				//calculate volume standard deviation
 				double squaredTotal=0;
 				for (int i : dailyTotalNums) {
-					squaredTotal+=(i-mean)*(i-mean);
+					squaredTotal+=(i-numberMean)*(i-numberMean);
 				}
-				double stdDev = Math.sqrt(squaredTotal/(dailyTotalNums.length-1));
-				numberStdDevs.put(type,stdDev);
-			}
-			else {
-				numberMeans.put(type,0.0);
-				numberStdDevs.put(type,0.0);
+				if (dailyTotalNums.length>1) {
+					numberStdDev = Math.sqrt(squaredTotal/(dailyTotalNums.length-1));
+				}
 			}
 			if (speedMap.containsKey(type)) {
 				ArrayList<Double> speedList = speedMap.get(type);
 				
-				//calculate mean
+				//calculate speed mean
 				double total=0;
 				for (double speed : speedList) {
 					total+=speed;
 				}
-				double mean = total/speedList.size();
-				speedMeans.put(type,mean);
+				speedMean = total/speedList.size();
 				
-				//calculate standard deviation
+				//calculate speed standard deviation
 				double squaredTotal=0;
 				for (double speed: speedList) {
-					squaredTotal+=(speed-mean)*(speed-mean);
+					squaredTotal+=(speed-speedMean)*(speed-speedMean);
 				}
-				double stdDev=Math.sqrt(squaredTotal/(speedList.size()-1));
-				speedStdDevs.put(type,stdDev);
+				if (speedList.size()>1) {
+					speedStdDev=Math.sqrt(squaredTotal/(speedList.size()-1));
+				}
 			}
-			else {
-				speedMeans.put(type,0.0);
-				speedStdDevs.put(type,0.0);
-			}
-			System.out.println("Number mean of "+type+ ": "+numberMeans.get(type));
-			System.out.println("Number stddev of "+type+ ": "+numberStdDevs.get(type));
-			System.out.println("Speed mean of "+type+ ": "+speedMeans.get(type));
-			System.out.println("Speed stddev of "+type+ ": "+speedStdDevs.get(type));
+			writer.write(type+":"+numberMean+":"+numberStdDev+":"+speedMean+":"+speedStdDev+":");
+			writer.newLine();
 		}
+		writer.close();
 		
 		//list all vehicle plates that breaches the speed limit
 		System.out.println("Listing breached vehicles...");
+		writer = new BufferedWriter(new FileWriter("breachedVehicles.txt"));
 		for (int d : breachedVehicles.keySet()) {
-			System.out.println("On day: "+d);
+			//System.out.println("On day: "+d);
+			writer.write("On day: "+d);
+			writer.newLine();
 			for (String plate : breachedVehicles.get(d)) {
-				System.out.println(plate);
+				//System.out.println(plate);
+				writer.write(plate);
+				writer.newLine();
 			}
 		}
+		writer.close();
+		
+		//produce daily totals, which contain day:vType:totalNumPerDay:averageSpeedPerDay
+		writer = new BufferedWriter(new FileWriter("dailyTotals.txt"));
+		for (int d=1; d<=days;d++) {
+			for (String type: vehicleTypes.keySet()) {
+				writer.write(d+":"+type+":");
+				int totalNum=0;
+				double averageSpeed=0.0;
+				if (numberMap.containsKey(type)) {
+					totalNum=numberMap.get(type)[d-1];
+					writer.write(totalNum+":");
+				}
+				if (dailySpeedMap.containsKey(type)) {
+					if (totalNum>0) {
+						averageSpeed=dailySpeedMap.get(type)[d-1]/totalNum;
+					}
+					writer.write(averageSpeed+":");
+				}
+				writer.newLine();
+			}
+		}
+		writer.close();
 	}
 	
 	public static void main(String[] args) throws IOException,NumberFormatException,InconsistentException,IllegalArgumentException {
@@ -451,76 +547,10 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 			}
 			in.close();
 		}
-		
-		BufferedReader r = new BufferedReader(new FileReader(vehicleFile));
-		String line= r.readLine(); //read the first line - the number of monitored vehicle types
-		int monitoredTypes = Integer.parseInt(line);
-		if(monitoredTypes < 1) {
-			throw new IllegalArgumentException("Monitored vehicles must be greater then 0.");
-		}
-		HashMap<String, VehicleType> vehicleTypes= new HashMap<String, VehicleType>();
-		int readCounter = 0;
-		while ((line=r.readLine())!=null) { //read in subsequent lines
-			String[] fields = line.split(":");
-			String name=fields[0];
-			boolean canPark = (fields[1].equals("0")) ? false : true;
-			String regFormat = fields[2];
-			int volumeWeight = Integer.parseInt(fields[3]);
-			int speedWeight = Integer.parseInt(fields[4]);
-			if(volumeWeight < 0 || speedWeight < 0) {
-				throw new IllegalArgumentException("Invalid input in vehicles file. Ensure weights are equal to or greater then 0.");
-			}
-			VehicleType v = new VehicleType(name,canPark,regFormat,volumeWeight,speedWeight);
-			vehicleTypes.put(name,v); //associate each vehicle with the name
-			readCounter++;
-		}
-		r.close();
-		if(readCounter != monitoredTypes)
-		{
-			throw new InconsistentException("Monitored count did not match the amount of vehicles read.");
-		}
-		
-		r = new BufferedReader(new FileReader(statFile));
-		line = r.readLine();
-		String[] roadStats = line.split(" ");
-		if (Integer.parseInt(roadStats[0])!= monitoredTypes) {
-			throw new InconsistentException("Number of vehicle types is not consistent");
-		}
-		int length = Integer.parseInt(roadStats[1]);
-		int maxSpeed = Integer.parseInt(roadStats[2]);
-		int parkingSpaces = Integer.parseInt(roadStats[3]);
-		if(length < 0 || maxSpeed < 0 || parkingSpaces < 0) {
-			throw new IllegalArgumentException("Invalid input in stats file. Ensure your length, speed and parking spaces are correct.");
-		}
-		readCounter = 0;
-		HashMap<String,Stat> stats = new HashMap<String,Stat>();
-		while ((line=r.readLine())!=null) {
-			String[] fields = line.split(":");
-			String name = fields[0];
-			if(!vehicleTypes.containsKey(name)) {
-				throw new InconsistentException("Vehicle types were not consistent.");
-			}
-			double numMean = Double.parseDouble(fields[1]);
-			double numStdDev = Double.parseDouble(fields[2]);
-			double speedMean = Double.parseDouble(fields[3]);
-			double speedStdDev = Double.parseDouble(fields[4]);
-			if(numMean < 0 || numStdDev < 0 || speedMean < 0 || speedStdDev < 0) {
-				throw new IllegalArgumentException("Invalid input in stats file. Ensure statistical data is correct.");
-			}
-			Stat s = new Stat(name,numMean,numStdDev,speedMean,speedStdDev);
-			stats.put(name,s);
-			readCounter++;
-		}
-		if(readCounter != monitoredTypes)
-		{
-			throw new InconsistentException("Monitored count did not match the amount of vehicles read.");
-		}
-		r.close();
-		
-		Traffic traffic = new Traffic (vehicleTypes, stats, monitoredTypes, days, length, maxSpeed, parkingSpaces);
+		Traffic baselineTraffic = new Traffic (vehicleFile, statFile,days);
 		
 		//test
-		System.out.println("Number of vehicle types: "+ vehicleTypes.size());
+		/*System.out.println("Number of vehicle types: "+ vehicleTypes.size());
 		for (VehicleType v : vehicleTypes.values()) {
 			System.out.println(v.name);
 			System.out.println(v.canPark);
@@ -536,13 +566,20 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 			System.out.println(s.numStdDev);
 			System.out.println(s.speedMean);
 			System.out.println(s.speedStdDev);
-		}
+		}*/
 		
 		//generate events and log file
-		traffic.generateAndLog();
+		baselineTraffic.generateAndLog();
 		
-		//analyze the log file
-		traffic.analyze();
+		//analyze the log file, produce baselineStats.txt, breachedVehicles.txt, dailyTotals.txt
+		baselineTraffic.analyze("baselineStats.txt");
+		
+		//prompt user for a new file similar to Stats.txt, create a new Traffic instance
+		/*
+		Traffic liveTraffic = new Traffic(vehicleFile, liveStatFile,newDays);
+		liveTraffic.generateAndLog() => create log.txt
+		liveTraffic.analyze("liveStats.txt"); // by passing a different output file here, we generate a different stats to compare with baseline
+		*/
 	}
 
 }

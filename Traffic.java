@@ -539,6 +539,13 @@ public class Traffic {
             //Read daily totals
             BufferedReader r = new BufferedReader(new FileReader("dailyTotals.txt"));
             String line;
+            int speedSumOfWeight = 0;
+            int volumeSumOfWeight = 0;
+            for(VehicleType v : vehicleTypes.values())
+            {
+                speedSumOfWeight += v.speedWeight;
+                volumeSumOfWeight += v.volumeWeight;
+            }
             while((line = r.readLine())!=null) {
                 String[] totals = line.split(":");
                 int day = Integer.parseInt(totals[0]);
@@ -550,30 +557,23 @@ public class Traffic {
                 double tmpCheck = Math.abs(volume - stats.get(type).numMean);
                 tmpCheck = tmpCheck / stats.get(type).numStdDev; //tmpCheck is now showing how many std deviations we are away from mean
                 tmpCheck = tmpCheck * vehicleTypes.get(type).volumeWeight; //tmpCheck is now our anomaly counter
-                if(volumeAnomalyCounter.containsKey(type))
+                if(tmpCheck > (2*volumeSumOfWeight))
                 {
-                    volumeAnomalyCounter.get(type)[day-1] = tmpCheck;
+                    //TODO RAISE ALERT..
+                    System.out.println("ALERT RAISE...");
                 }
                 else
                 {
-                    double[] volumes = new double[days];
-                    volumes[day-1] = tmpCheck;
-                    volumeAnomalyCounter.put(type, volumes);
                     System.out.println(day + " - " + type + " - " + tmpCheck);
                 }
                 //Check speed anomalies
                 tmpCheck = Math.abs(avgSpeed - stats.get(type).speedMean);
                 tmpCheck = tmpCheck / stats.get(type).speedStdDev;
                 tmpCheck = tmpCheck * vehicleTypes.get(type).speedWeight;
-                if(speedAnomalyCounter.containsKey(type))
+                if(tmpCheck > (2*speedSumOfWeight))
                 {
-                    speedAnomalyCounter.get(type)[day-1] = tmpCheck;
-                }
-                else
-                {
-                    double[] speeds = new double[days];
-                    speeds[day-1] = tmpCheck;
-                    speedAnomalyCounter.put(type, speeds);
+                    //TODO RAISE ALERT..
+                    System.out.println("ALERT RAISE...");
                 }
             }
             //TODO: If anomaly counter greater then 2*(sumofweights) THEN ALERT
@@ -595,6 +595,25 @@ public class Traffic {
 			in.close();
 		}
 		Traffic baselineTraffic = new Traffic (vehicleFile, statFile,days);
+		
+		//test
+		/*System.out.println("Number of vehicle types: "+ vehicleTypes.size());
+		for (VehicleType v : vehicleTypes.values()) {
+			System.out.println(v.name);
+			System.out.println(v.canPark);
+			System.out.println(v.regFormat);
+			System.out.println(v.volumeWeight);
+			System.out.println(v.speedWeight);
+		}
+		
+		System.out.println("Number of stats: "+ stats.size());
+		for (Stat s : stats.values()) {
+			System.out.println(s.name);
+			System.out.println(s.numMean);
+			System.out.println(s.numStdDev);
+			System.out.println(s.speedMean);
+			System.out.println(s.speedStdDev);
+		}*/
 		
 		//generate events and log file
 		baselineTraffic.generateAndLog();

@@ -549,25 +549,6 @@ public class Traffic {
 		}
 		Traffic baselineTraffic = new Traffic (vehicleFile, statFile,days);
 		
-		//test
-		/*System.out.println("Number of vehicle types: "+ vehicleTypes.size());
-		for (VehicleType v : vehicleTypes.values()) {
-			System.out.println(v.name);
-			System.out.println(v.canPark);
-			System.out.println(v.regFormat);
-			System.out.println(v.volumeWeight);
-			System.out.println(v.speedWeight);
-		}
-		
-		System.out.println("Number of stats: "+ stats.size());
-		for (Stat s : stats.values()) {
-			System.out.println(s.name);
-			System.out.println(s.numMean);
-			System.out.println(s.numStdDev);
-			System.out.println(s.speedMean);
-			System.out.println(s.speedStdDev);
-		}*/
-		
 		//generate events and log file
 		baselineTraffic.generateAndLog();
 		

@@ -436,15 +436,30 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 		}
 	}
 	
-	public static void main(String[] args) throws IOException,NumberFormatException,InconsistentException {
+	public static void main(String[] args) throws IOException,NumberFormatException,InconsistentException,IllegalArgumentException {
 		String vehicleFile = args[0];
 		String statFile = args[1];
 		int days = Integer.parseInt(args[2]);
+		if(days < 1)
+		{
+			System.out.println("Days argument invalid. Enter an integer greater then 0: ");
+			Scanner in = new Scanner(System.in);
+			days = in.nextInt();
+			while(days < 1) {
+				System.out.println("Days argument invalid. Enter an integer greater then 0: ");
+				days = in.nextInt();
+			}
+			in.close();
+		}
 		
 		BufferedReader r = new BufferedReader(new FileReader(vehicleFile));
 		String line= r.readLine(); //read the first line - the number of monitored vehicle types
 		int monitoredTypes = Integer.parseInt(line);
+		if(monitoredTypes < 1) {
+			throw new IllegalArgumentException("Monitored vehicles must be greater then 0.");
+		}
 		HashMap<String, VehicleType> vehicleTypes= new HashMap<String, VehicleType>();
+		int readCounter = 0;
 		while ((line=r.readLine())!=null) { //read in subsequent lines
 			String[] fields = line.split(":");
 			String name=fields[0];
@@ -452,10 +467,18 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 			String regFormat = fields[2];
 			int volumeWeight = Integer.parseInt(fields[3]);
 			int speedWeight = Integer.parseInt(fields[4]);
+			if(volumeWeight < 0 || speedWeight < 0) {
+				throw new IllegalArgumentException("Invalid input in vehicles file. Ensure weights are equal to or greater then 0.");
+			}
 			VehicleType v = new VehicleType(name,canPark,regFormat,volumeWeight,speedWeight);
 			vehicleTypes.put(name,v); //associate each vehicle with the name
+			readCounter++;
 		}
 		r.close();
+		if(readCounter != monitoredTypes)
+		{
+			throw new InconsistentException("Monitored count did not match the amount of vehicles read.");
+		}
 		
 		r = new BufferedReader(new FileReader(statFile));
 		line = r.readLine();
@@ -466,16 +489,31 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 		int length = Integer.parseInt(roadStats[1]);
 		int maxSpeed = Integer.parseInt(roadStats[2]);
 		int parkingSpaces = Integer.parseInt(roadStats[3]);
+		if(length < 0 || maxSpeed < 0 || parkingSpaces < 0) {
+			throw new IllegalArgumentException("Invalid input in stats file. Ensure your length, speed and parking spaces are correct.");
+		}
+		readCounter = 0;
 		HashMap<String,Stat> stats = new HashMap<String,Stat>();
 		while ((line=r.readLine())!=null) {
 			String[] fields = line.split(":");
 			String name = fields[0];
+			if(!vehicleTypes.containsKey(name)) {
+				throw new InconsistentException("Vehicle types were not consistent.");
+			}
 			double numMean = Double.parseDouble(fields[1]);
 			double numStdDev = Double.parseDouble(fields[2]);
 			double speedMean = Double.parseDouble(fields[3]);
 			double speedStdDev = Double.parseDouble(fields[4]);
+			if(numMean < 0 || numStdDev < 0 || speedMean < 0 || speedStdDev < 0) {
+				throw new IllegalArgumentException("Invalid input in stats file. Ensure statistical data is correct.");
+			}
 			Stat s = new Stat(name,numMean,numStdDev,speedMean,speedStdDev);
 			stats.put(name,s);
+			readCounter++;
+		}
+		if(readCounter != monitoredTypes)
+		{
+			throw new InconsistentException("Monitored count did not match the amount of vehicles read.");
 		}
 		r.close();
 		

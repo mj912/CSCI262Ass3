@@ -440,11 +440,16 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 		String vehicleFile = args[0];
 		String statFile = args[1];
 		int days = Integer.parseInt(args[2]);
-		while(days < 1) {
+		if(days < 1)
+		{
 			System.out.println("Days argument invalid. Enter an integer greater then 0: ");
 			Scanner in = new Scanner(System.in);
-                        days = in.nextInt();
-                        in.close();
+			days = in.nextInt();
+			while(days < 1) {
+				System.out.println("Days argument invalid. Enter an integer greater then 0: ");
+				days = in.nextInt();
+			}
+			in.close();
 		}
 		
 		BufferedReader r = new BufferedReader(new FileReader(vehicleFile));
@@ -454,6 +459,7 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 			throw new IllegalArgumentException("Monitored vehicles must be greater then 0.");
 		}
 		HashMap<String, VehicleType> vehicleTypes= new HashMap<String, VehicleType>();
+		int readCounter = 0;
 		while ((line=r.readLine())!=null) { //read in subsequent lines
 			String[] fields = line.split(":");
 			String name=fields[0];
@@ -466,8 +472,13 @@ public class Traffic { //note that we only monitor traffic on a single road righ
 			}
 			VehicleType v = new VehicleType(name,canPark,regFormat,volumeWeight,speedWeight);
 			vehicleTypes.put(name,v); //associate each vehicle with the name
+			readCounter++;
 		}
 		r.close();
+		if(readCounter != monitoredTypes)
+		{
+			throw new InconsistentException("Monitored count did not match the amount of vehicles read.");
+		}
 		
 		r = new BufferedReader(new FileReader(statFile));
 		line = r.readLine();

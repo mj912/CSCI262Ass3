@@ -519,12 +519,20 @@ public class Traffic {
 					totalNum=numberMap.get(type)[d-1];
 					writer.write(totalNum+":");
 				}
+                                else
+                                {
+                                    writer.write(0 + ":");
+                                }
 				if (dailySpeedMap.containsKey(type)) {
 					if (totalNum>0) {
 						averageSpeed=dailySpeedMap.get(type)[d-1]/totalNum;
 					}
 					writer.write(averageSpeed+":");
 				}
+                                else
+                                {
+                                    writer.write(0 + ":");
+                                }
 				writer.newLine();
 			}
 		}
@@ -532,8 +540,6 @@ public class Traffic {
 	}
         
         private void alertEngine() throws IOException, InconsistentException {
-            HashMap<String, double[]> volumeAnomalyCounter = new HashMap<>();
-            HashMap<String, double[]> speedAnomalyCounter = new HashMap<>(); // Store anomaly count for each day where index = d-1
             //Read baseline stats in to compare using stats.get(vType).numMean etc
             readStatFile("baselineStats.txt");
             //Read daily totals
@@ -546,37 +552,65 @@ public class Traffic {
                 speedSumOfWeight += v.speedWeight;
                 volumeSumOfWeight += v.volumeWeight;
             }
+            System.out.println("The volume anomaly threshold: " + volumeSumOfWeight*2);
+            System.out.println("The speed anomaly threshold: " + speedSumOfWeight*2);
+            double volCount = 0;
+            double speedCount = 0;
+            int oldDay = 1; //Used to monitor if new day
             while((line = r.readLine())!=null) {
                 String[] totals = line.split(":");
                 int day = Integer.parseInt(totals[0]);
+                //Reset counters for new day and alert if anomaly counter greater
+                if(day > oldDay)
+                {
+                    if(volCount > (2*volumeSumOfWeight))
+                    {
+                        //TODO RAISE ALERT..
+                        System.out.println("ALERT RAISE VOL...");
+                    }
+                    if(speedCount > (2*speedSumOfWeight))
+                    {
+                        //TODO RAISE ALERT..
+                        System.out.println("ALERT RAISE SPEED...");
+                    }
+                    System.out.println("Day " + oldDay + " volume anomaly count: " + volCount);
+                    System.out.println("Day " + oldDay + " speed anomaly count: " + speedCount);
+                    volCount = 0;
+                    speedCount = 0;
+                    oldDay = day;
+                }
                 String type = totals[1];
                 int volume = Integer.parseInt(totals[2]);
                 double avgSpeed = Double.parseDouble(totals[3]);
                 
                 //Check volume anomalies
-                double tmpCheck = Math.abs(volume - stats.get(type).numMean);
+                double tmpCheck = (double)Math.abs(volume - stats.get(type).numMean);
                 tmpCheck = tmpCheck / stats.get(type).numStdDev; //tmpCheck is now showing how many std deviations we are away from mean
                 tmpCheck = tmpCheck * vehicleTypes.get(type).volumeWeight; //tmpCheck is now our anomaly counter
-                if(tmpCheck > (2*volumeSumOfWeight))
-                {
-                    //TODO RAISE ALERT..
-                    System.out.println("ALERT RAISE...");
-                }
-                else
-                {
-                    System.out.println(day + " - " + type + " - " + tmpCheck);
-                }
+                volCount += tmpCheck;
+                
                 //Check speed anomalies
-                tmpCheck = Math.abs(avgSpeed - stats.get(type).speedMean);
-                tmpCheck = tmpCheck / stats.get(type).speedStdDev;
-                tmpCheck = tmpCheck * vehicleTypes.get(type).speedWeight;
-                if(tmpCheck > (2*speedSumOfWeight))
+                if(volume > 0) //Add check to only count if atleast one vehicle was present
                 {
-                    //TODO RAISE ALERT..
-                    System.out.println("ALERT RAISE...");
+                    tmpCheck = (double)Math.abs(avgSpeed - stats.get(type).speedMean);
+                    tmpCheck = tmpCheck / stats.get(type).speedStdDev;
+                    tmpCheck = tmpCheck * vehicleTypes.get(type).speedWeight;
+                    speedCount += tmpCheck;
                 }
             }
-            //TODO: If anomaly counter greater then 2*(sumofweights) THEN ALERT
+            //EOF consideration for last day
+            if(volCount > (2*volumeSumOfWeight))
+            {
+                //TODO RAISE ALERT..
+                System.out.println("ALERT RAISE VOL...");
+            }
+            if(speedCount > (2*speedSumOfWeight))
+            {
+                //TODO RAISE ALERT..
+                System.out.println("ALERT RAISE SPEED...");
+            }
+            System.out.println("Day " + oldDay + " volume anomaly count: " + volCount);
+            System.out.println("Day " + oldDay + " speed anomaly count: " + speedCount);
         }
 	
 	public static void main(String[] args) throws IOException,NumberFormatException,InconsistentException,IllegalArgumentException {
@@ -596,24 +630,6 @@ public class Traffic {
 		}
 		Traffic baselineTraffic = new Traffic (vehicleFile, statFile,days);
 		
-		//test
-		/*System.out.println("Number of vehicle types: "+ vehicleTypes.size());
-		for (VehicleType v : vehicleTypes.values()) {
-			System.out.println(v.name);
-			System.out.println(v.canPark);
-			System.out.println(v.regFormat);
-			System.out.println(v.volumeWeight);
-			System.out.println(v.speedWeight);
-		}
-		
-		System.out.println("Number of stats: "+ stats.size());
-		for (Stat s : stats.values()) {
-			System.out.println(s.name);
-			System.out.println(s.numMean);
-			System.out.println(s.numStdDev);
-			System.out.println(s.speedMean);
-			System.out.println(s.speedStdDev);
-		}*/
 		
 		//generate events and log file
 		baselineTraffic.generateAndLog();

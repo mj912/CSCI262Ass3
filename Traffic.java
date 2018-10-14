@@ -637,15 +637,14 @@ public class Traffic {
 		//analyze the log file, produce baselineStats.txt, breachedVehicles.txt, dailyTotals.txt
 		baselineTraffic.analyze("baselineStats.txt");
 
-                boolean flag = true;
                 Scanner in = new Scanner(System.in);
-                while(flag)
+                while(true)
                 {
                     System.out.println("Enter a new stats file or 'Q' to quit: ");
                     statFile = in.nextLine();
                     if(statFile.equalsIgnoreCase("q"))
                     {
-                        flag = false; in.close(); break;
+                        break;
                     }
                     System.out.println("Enter an amount of days to generate traffic for: ");
                     days = in.nextInt();
@@ -661,12 +660,6 @@ public class Traffic {
                 }
                 in.close();
 		
-		//prompt user for a new file similar to Stats.txt (LiveStats.txt), create a new Traffic instance
-		/*
-		Traffic liveTraffic = new Traffic(vehicleFile, liveStatFile,newDays,false);
-		liveTraffic.generateAndLog() => create log.txt
-		liveTraffic.analyze("liveStats.txt"); // by passing a different output file here, we generate a different stats to compare with baseline
-		*/
 	}
 
 }

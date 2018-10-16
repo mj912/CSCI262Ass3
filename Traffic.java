@@ -557,6 +557,7 @@ public class Traffic {
             double volCount = 0;
             double speedCount = 0;
             int oldDay = 1; //Used to monitor if new day
+            String toWrite = "";
             while((line = r.readLine())!=null) {
                 String[] totals = line.split(":");
                 int day = Integer.parseInt(totals[0]);
@@ -565,13 +566,15 @@ public class Traffic {
                 {
                     if(volCount > (2*volumeSumOfWeight))
                     {
-                        //TODO RAISE ALERT..
-                        System.out.println("ALERT RAISE VOL...");
+                        System.out.println("Day " + oldDay + " ALERT:\tVolume anomaly threshold exceeded.");
+                        toWrite += "Volume intrusion detected on day " + oldDay + ". The threshold was exceeded by "
+                                + (volCount - (2*volumeSumOfWeight)) + ".\n";
                     }
                     if(speedCount > (2*speedSumOfWeight))
                     {
-                        //TODO RAISE ALERT..
-                        System.out.println("ALERT RAISE SPEED...");
+                        System.out.println("Day " + oldDay + " ALERT:\tSpeed anomaly threshold exceeded.");
+                        toWrite += "Speed intrusion detected on day " + oldDay + ". The threshold was exceeded by "
+                                + (speedCount - (2*speedSumOfWeight)) + ".\n";
                     }
                     System.out.println("Day " + oldDay + " volume anomaly count: " + volCount);
                     System.out.println("Day " + oldDay + " speed anomaly count: " + speedCount);
@@ -585,7 +588,10 @@ public class Traffic {
                 
                 //Check volume anomalies
                 double tmpCheck = (double)Math.abs(volume - stats.get(type).numMean);
-                tmpCheck = tmpCheck / stats.get(type).numStdDev; //tmpCheck is now showing how many std deviations we are away from mean
+                if(stats.get(type).numStdDev > 0)
+                {
+                    tmpCheck = tmpCheck / stats.get(type).numStdDev; //Consideration for division by 0 -- std dev could be 0
+                }
                 tmpCheck = tmpCheck * vehicleTypes.get(type).volumeWeight; //tmpCheck is now our anomaly counter
                 volCount += tmpCheck;
                 
@@ -593,7 +599,10 @@ public class Traffic {
                 if(volume > 0) //Add check to only count if atleast one vehicle was present
                 {
                     tmpCheck = (double)Math.abs(avgSpeed - stats.get(type).speedMean);
-                    tmpCheck = tmpCheck / stats.get(type).speedStdDev;
+                    if(stats.get(type).speedStdDev > 0)
+                    {
+                        tmpCheck = tmpCheck / stats.get(type).speedStdDev; //Consideration for division by 0 -- std dev could be 0
+                    }
                     tmpCheck = tmpCheck * vehicleTypes.get(type).speedWeight;
                     speedCount += tmpCheck;
                 }
@@ -601,13 +610,21 @@ public class Traffic {
             //EOF consideration for last day
             if(volCount > (2*volumeSumOfWeight))
             {
-                //TODO RAISE ALERT..
-                System.out.println("ALERT RAISE VOL...");
+                System.out.println("Day " + oldDay + " ALERT:\tVolume anomaly threshold exceeded.");
+                toWrite += "Volume intrusion detected on day " + oldDay + ". The threshold was exceeded by "
+                        + (volCount - (2*volumeSumOfWeight)) + ".\n";
             }
             if(speedCount > (2*speedSumOfWeight))
             {
-                //TODO RAISE ALERT..
-                System.out.println("ALERT RAISE SPEED...");
+                System.out.println("Day " + oldDay + " ALERT:\tSpeed anomaly threshold exceeded.");
+                toWrite += "Speed intrusion detected on day " + oldDay + ". The threshold was exceeded by "
+                        + (speedCount - (2*speedSumOfWeight)) + ".\n";
+            }
+            if(toWrite != "")
+            {
+                BufferedWriter w = new BufferedWriter(new FileWriter("intrusions.txt"));
+                w.write(toWrite);
+                w.close();
             }
             System.out.println("Day " + oldDay + " volume anomaly count: " + volCount);
             System.out.println("Day " + oldDay + " speed anomaly count: " + speedCount);
@@ -659,7 +676,6 @@ public class Traffic {
                     newTraffic.alertEngine();
                 }
                 in.close();
-		
 	}
 
 }

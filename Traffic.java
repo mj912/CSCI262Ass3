@@ -236,26 +236,30 @@ public class Traffic {
 			remainingVehicles=0;
 			for (String name : vehicleTypes.keySet()) {
 				int vehicleNum = (int) stats.get(name).getGaussianNumber();
+				if (vehicleNum<0) { //limit vehicleNum min 0
+					vehicleNum=0;
+				}
 				remainingVehicles+=vehicleNum;
 				LinkedList<String> plates = new LinkedList<>();
 				System.out.println(name);
 				for (int i=0; i< vehicleNum; i++) {
 					plates.add(generateUniquePlate(vehicleTypes.get(name)));
-					//System.out.println(plates.get(i));
 				}
 				remains.put(name, plates);
 			}
 			for (int m=1; m<=1440;m++) { //for each minute
 				if (vehicles.size()==0) { //if there's no current vehicle in the system, we have to generate more vehicles. Generate one more randomly
 					if (m>1380) { //if it's over 23:00 already, it mean we are done for the day because empty street, no new vehicle arrive
+						System.out.println("23:00 and no vehicles in the system => done for the day");
 						break;
 					}
 					else if (remainingVehicles<=0) {
+						System.out.println("No remaining vehicles and no vehicles in the system => done for the day");
 						break;
 					}
 					else {
 						Vehicle v=vehicleArrive(); //becuase remainingVehicles >0, we guarantee to generate a new vehicle v
-						System.out.println("Empty and added vehicle: "+v.regPlate);
+						System.out.println("No vehicle in system and added vehicle: "+v.regPlate);
 						events.add(new ArrivalEvent(v,d,m));
 					}
 				}
@@ -265,6 +269,9 @@ public class Traffic {
 					if (!v.isParked) { //if v is not parked, then every v has to move and possibly change speed
 						double speedDelta=r.nextDouble()*2-1; //to range from -1.0 to 1.0 km/h
 						v.curSpeed+=speedDelta;
+						if (curSpeed<0) { //limit speed min 0
+							curSpeed=0;
+						}
 						v.distance+=v.curSpeed/60; //this is km/minute because v.curSpeed is km/h
 						events.add(new Event(v,EventType.MOVE,d,m));
 						
@@ -284,6 +291,9 @@ public class Traffic {
 							v.isParked=false;
 							parkingSpaces++;
 							v.curSpeed=stats.get(v.type).getGaussianSpeed();
+							if (v.curSpeed<0) {
+								v.curSpeed=0;
+							}
 							events.add(new ParkEvent(v,d,m,false));
 						}
 						else { //if v is currently not parked
@@ -297,8 +307,11 @@ public class Traffic {
 					else { //this must be EventType.ARRIVAL
 						if (m<=1380 && remainingVehicles>0) { //if it is still <= 23:00 and still remaining some vehicles
 							Vehicle newV=vehicleArrive();
-							System.out.println("Not Empty and added vehicle: "+newV.regPlate);
+							System.out.println("System not empty,before 23:00 and added vehicle: "+newV.regPlate);
 							events.add(new ArrivalEvent(newV,d,m));
+						}
+						else {
+							System.out.println("After 23:00 or no remaining vehicles, Arrival Event can't be generated");
 						}
 					}
 				}

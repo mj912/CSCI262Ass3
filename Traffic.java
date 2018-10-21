@@ -231,6 +231,7 @@ public class Traffic {
 	public void generateAndLog() throws IOException {
 		System.out.println("Started generating events");
 		for (int d=1; d<=days; d++) { //for each day
+			boolean over23Printed = false;
 			System.out.println("Current day: "+ d);
 			remains.clear(); //clear all remaining at the beginning of each day
 			remainingVehicles=0;
@@ -311,7 +312,11 @@ public class Traffic {
 							events.add(new ArrivalEvent(newV,d,m));
 						}
 						else {
-							System.out.println("After 23:00 or no remaining vehicles, Arrival Event can't be generated");
+							if(!over23Printed)
+							{
+								System.out.println("After 23:00 or no remaining vehicles, Arrival Event can't be generated");
+								over23Printed = true;
+							}
 						}
 					}
 				}

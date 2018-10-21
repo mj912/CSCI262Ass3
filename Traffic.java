@@ -531,14 +531,19 @@ public class Traffic {
 				double averageSpeed=0.0;
 				if (numberMap.containsKey(type)) {
 					totalNum=numberMap.get(type)[d-1];
-					writer.write(totalNum+":");
 				}
+				writer.write(totalNum+":");
 				if (dailySpeedMap.containsKey(type)) {
 					if (totalNum>0) {
 						averageSpeed=dailySpeedMap.get(type)[d-1]/totalNum;
 					}
-					writer.write(averageSpeed+":");
+					else {
+						if (dailySpeedMap.get(type)[d-1]>0) {
+							System.out.println("Anomaly detected. No vehicle of type: "+type+" on day: "+d+" but total speed is>0");
+						}
+					}
 				}
+				writer.write(averageSpeed+":");
 				writer.newLine();
 			}
 		}

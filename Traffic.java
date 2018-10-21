@@ -150,7 +150,7 @@ public class Traffic {
 		newArrivals = new ArrayList<Vehicle>();
 		events=new ArrayList<Event>();
 		r = new Random();
-		plateSet = new HashSet<>();
+		plateSet = new HashSet<String>();
 	}
 	
 	private void readVehicleFile(String vehicleFile) throws IOException,InconsistentException, IllegalArgumentException, NumberFormatException
@@ -242,7 +242,7 @@ public class Traffic {
 					vehicleNum=0;
 				}
 				remainingVehicles+=vehicleNum;
-				LinkedList<String> plates = new LinkedList<>();
+				LinkedList<String> plates = new LinkedList<String>();
 				System.out.println(name);
 				for (int i=0; i< vehicleNum; i++) {
 					plates.add(generateUniquePlate(vehicleTypes.get(name)));
@@ -388,7 +388,7 @@ public class Traffic {
 	}
 	
 	private VehicleType randomizeVehicleType() {
-		List<String> types = new ArrayList<>();
+		List<String> types = new ArrayList<String>();
 		for (String type: remains.keySet()) {
 			if (remains.get(type).size()>0) { //only add to the to be randomized array elements that are of size >0
 				types.add(type);
@@ -419,7 +419,7 @@ public class Traffic {
 		HashMap<String,int[]> numberMap = new HashMap<String, int[]>(); //ArrayList contain totals for each day of a type
 		HashMap<String,double[]> dailySpeedMap = new HashMap<String, double[]>(); //contain the total arrivalSpeed for each type in each day
 		HashMap<String,ArrayList<Double>> speedMap = new HashMap<String,ArrayList<Double>>(); //array list contains all speed of a type
-		HashMap<String,Integer> vehicleMap = new HashMap<>(); //map regPlate with arrivalTime, to be able to test speed breaches
+		HashMap<String,Integer> vehicleMap = new HashMap<String, Integer>(); //map regPlate with arrivalTime, to be able to test speed breaches
 		HashMap<Integer,ArrayList<String>> breachedVehicles = new HashMap<Integer,ArrayList<String>>();
 		
 		System.out.println("Start analyzing log file...");
@@ -445,7 +445,7 @@ public class Traffic {
 					speedMap.get(vType).add(arrivalSpeed);
 				}
 				else {
-					ArrayList<Double> speedList = new ArrayList<>();
+					ArrayList<Double> speedList = new ArrayList<Double>();
 					speedList.add(arrivalSpeed);
 					speedMap.put(vType,speedList);
 				}
@@ -467,7 +467,7 @@ public class Traffic {
 						breachedVehicles.get(d).add(regPlate);
 					}
 					else {
-						ArrayList<String> breachOfToday = new ArrayList<>();
+						ArrayList<String> breachOfToday = new ArrayList<String>();
 						breachOfToday.add(regPlate);
 						breachedVehicles.put(d,breachOfToday);
 					}

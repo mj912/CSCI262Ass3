@@ -234,6 +234,8 @@ public class Traffic {
 			System.out.println("Current day: "+ d);
 			remains.clear(); //clear all remaining at the beginning of each day
 			remainingVehicles=0;
+			boolean over23Printed=false;
+			boolean remainingEmptyPrinted=false;
 			for (String name : vehicleTypes.keySet()) {
 				int vehicleNum = (int) stats.get(name).getGaussianNumber();
 				if (vehicleNum<0) { //limit vehicleNum min 0
@@ -311,7 +313,25 @@ public class Traffic {
 							events.add(new ArrivalEvent(newV,d,m));
 						}
 						else {
-							System.out.println("After 23:00 or no remaining vehicles, Arrival Event can't be generated");
+							if (m>1380 && remainingVehicles==0) {
+								System.out.println("23:00 and no vehicles in the system => done for the day");
+								break;
+							}
+							else {
+								if (remainingVehicles==0) {
+									if (!remainingEmptyPrinted) {
+										System.out.println("no remaining vehicles, Arrival Event can't be generated");
+										remainingEmptyPrinted=true;
+									}
+								}
+								else {
+									if (!over23Printed) {
+										System.out.println("After 23:00, Arrival Event can't be generated");
+										over23Printed=true;
+									}
+								}
+								
+							}
 						}
 					}
 				}

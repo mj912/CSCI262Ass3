@@ -126,7 +126,6 @@ public class Traffic {
 	private int maxSpeed;
 	private int parkingSpaces;
 	private int remainingVehicles; //number of all remainingVehicles in remains
-	private boolean baseline;
 	private HashMap<String, VehicleType> vehicleTypes;
 	private HashMap<String, Stat> stats;
 	private ArrayList<Vehicle> vehicles; //all vehicles currently on the road
@@ -533,17 +532,116 @@ public class Traffic {
 					totalNum=numberMap.get(type)[d-1];
 					writer.write(totalNum+":");
 				}
+                                else
+                                {
+                                    writer.write(0 + ":");
+                                }
 				if (dailySpeedMap.containsKey(type)) {
 					if (totalNum>0) {
 						averageSpeed=dailySpeedMap.get(type)[d-1]/totalNum;
 					}
 					writer.write(averageSpeed+":");
 				}
+                                else
+                                {
+                                    writer.write(0 + ":");
+                                }
 				writer.newLine();
 			}
 		}
 		writer.close();
 	}
+        
+        private void alertEngine() throws IOException, InconsistentException {
+            //Read baseline stats in to compare using stats.get(vType).numMean etc
+            readStatFile("baselineStats.txt");
+            //Read daily totals
+            BufferedReader r = new BufferedReader(new FileReader("dailyTotals.txt"));
+            String line;
+            int speedSumOfWeight = 0;
+            int volumeSumOfWeight = 0;
+            for(VehicleType v : vehicleTypes.values())
+            {
+                speedSumOfWeight += v.speedWeight;
+                volumeSumOfWeight += v.volumeWeight;
+            }
+            System.out.println("The volume anomaly threshold: " + volumeSumOfWeight*2);
+            System.out.println("The speed anomaly threshold: " + speedSumOfWeight*2);
+            double volCount = 0;
+            double speedCount = 0;
+            int oldDay = 1; //Used to monitor if new day
+            String toWrite = "";
+            while((line = r.readLine())!=null) {
+                String[] totals = line.split(":");
+                int day = Integer.parseInt(totals[0]);
+                //Reset counters for new day and alert if anomaly counter greater
+                if(day > oldDay)
+                {
+                    if(volCount > (2*volumeSumOfWeight))
+                    {
+                        System.out.println("Day " + oldDay + " ALERT:\tVolume anomaly threshold exceeded.");
+                        toWrite += "Volume intrusion detected on day " + oldDay + ". The threshold was exceeded by "
+                                + (volCount - (2*volumeSumOfWeight)) + ".\n";
+                    }
+                    if(speedCount > (2*speedSumOfWeight))
+                    {
+                        System.out.println("Day " + oldDay + " ALERT:\tSpeed anomaly threshold exceeded.");
+                        toWrite += "Speed intrusion detected on day " + oldDay + ". The threshold was exceeded by "
+                                + (speedCount - (2*speedSumOfWeight)) + ".\n";
+                    }
+                    System.out.println("Day " + oldDay + " volume anomaly count: " + volCount);
+                    System.out.println("Day " + oldDay + " speed anomaly count: " + speedCount);
+                    volCount = 0;
+                    speedCount = 0;
+                    oldDay = day;
+                }
+                String type = totals[1];
+                int volume = Integer.parseInt(totals[2]);
+                double avgSpeed = Double.parseDouble(totals[3]);
+                
+                //Check volume anomalies
+                double tmpCheck = (double)Math.abs(volume - stats.get(type).numMean);
+                if(stats.get(type).numStdDev > 0)
+                {
+                    tmpCheck = tmpCheck / stats.get(type).numStdDev; //Consideration for division by 0 -- std dev could be 0
+                }
+                tmpCheck = tmpCheck * vehicleTypes.get(type).volumeWeight; //tmpCheck is now our anomaly counter
+                volCount += tmpCheck;
+                
+                //Check speed anomalies
+                if(volume > 0) //Add check to only count if atleast one vehicle was present
+                {
+                    tmpCheck = (double)Math.abs(avgSpeed - stats.get(type).speedMean);
+                    if(stats.get(type).speedStdDev > 0)
+                    {
+                        tmpCheck = tmpCheck / stats.get(type).speedStdDev; //Consideration for division by 0 -- std dev could be 0
+                    }
+                    tmpCheck = tmpCheck * vehicleTypes.get(type).speedWeight;
+                    speedCount += tmpCheck;
+                }
+            }
+            //EOF consideration for last day
+            if(volCount > (2*volumeSumOfWeight))
+            {
+                System.out.println("Day " + oldDay + " ALERT:\tVolume anomaly threshold exceeded.");
+                toWrite += "Volume intrusion detected on day " + oldDay + ". The threshold was exceeded by "
+                        + (volCount - (2*volumeSumOfWeight)) + ".\n";
+            }
+            if(speedCount > (2*speedSumOfWeight))
+            {
+                System.out.println("Day " + oldDay + " ALERT:\tSpeed anomaly threshold exceeded.");
+                toWrite += "Speed intrusion detected on day " + oldDay + ". The threshold was exceeded by "
+                        + (speedCount - (2*speedSumOfWeight)) + ".\n";
+            }
+            if(toWrite != "")
+            {
+                BufferedWriter w = new BufferedWriter(new FileWriter("intrusions.txt"));
+                w.write(toWrite);
+                w.close();
+            }
+            System.out.println("Day " + oldDay + " volume anomaly count: " + volCount);
+            System.out.println("Day " + oldDay + " speed anomaly count: " + speedCount);
+        }
 	
 	public static void main(String[] args) throws IOException,NumberFormatException,InconsistentException,IllegalArgumentException {
 		String vehicleFile = args[0];
@@ -562,18 +660,35 @@ public class Traffic {
 		}
 		Traffic baselineTraffic = new Traffic (vehicleFile, statFile,days);
 		
+		
 		//generate events and log file
 		baselineTraffic.generateAndLog();
 		
 		//analyze the log file, produce baselineStats.txt, breachedVehicles.txt, dailyTotals.txt
 		baselineTraffic.analyze("baselineStats.txt");
-		
-		//prompt user for a new file similar to Stats.txt, create a new Traffic instance
-		/*
-		Traffic liveTraffic = new Traffic(vehicleFile, liveStatFile,newDays);
-		liveTraffic.generateAndLog() => create log.txt
-		liveTraffic.analyze("liveStats.txt"); // by passing a different output file here, we generate a different stats to compare with baseline
-		*/
+
+                Scanner in = new Scanner(System.in);
+                while(true)
+                {
+                    System.out.println("Enter a new stats file or 'Q' to quit: ");
+                    statFile = in.nextLine();
+                    if(statFile.equalsIgnoreCase("q"))
+                    {
+                        break;
+                    }
+                    System.out.println("Enter an amount of days to generate traffic for: ");
+                    days = in.nextInt();
+                    while(days < 1) {
+				System.out.println("Enter an integer greater then 0: ");
+				days = in.nextInt();
+                    }
+                    in.nextLine();
+                    Traffic newTraffic = new Traffic (vehicleFile, statFile, days);
+                    newTraffic.generateAndLog();
+                    newTraffic.analyze("liveStats.txt");
+                    newTraffic.alertEngine();
+                }
+                in.close();
 	}
 
 }
